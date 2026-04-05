@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: student_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: abcd
+      POSTGRES_DB: student_prof_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
