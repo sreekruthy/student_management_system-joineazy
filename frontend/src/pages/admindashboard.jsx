@@ -4,6 +4,16 @@ import Navbar from "../components/navbar";
 
 export default function AdminDashboard() {
   const [data, setData] = useState([]);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    due_date: "",
+    onedrive_link: ""
+  });
+  const createAssignment = async () => {
+    await API.post("/assignments", form);
+    alert("Created!");
+  };
 
   useEffect(() => {
     API.get("/submissions").then(res => setData(res.data));
@@ -20,6 +30,47 @@ export default function AdminDashboard() {
           Total Submissions: {data.length}
         </div>
       </div>
+
+      {/* CREATE ASSIGNMENT FORM */}
+      <div className="mt-6 bg-white p-4 rounded shadow">
+        <h2 className="text-lg font-semibold mb-3">
+          Create Assignment
+        </h2>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <input
+          placeholder="Title"
+          className="border p-2 rounded"
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
+
+           <input
+           type="date"
+           className="border p-2 rounded"
+           onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+          />
+
+          <input
+          placeholder="OneDrive Link"
+          className="border p-2 rounded col-span-2"
+          onChange={(e) => setForm({ ...form, onedrive_link: e.target.value })}
+          />
+
+          <textarea
+          placeholder="Description"
+          className="border p-2 rounded col-span-2"
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          
+        </div>
+
+        <button
+        onClick={createAssignment}
+        className="mt-3 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Create Assignment
+        </button>
+     </div>
 
       <table className="mt-6 w-full border">
         <thead>

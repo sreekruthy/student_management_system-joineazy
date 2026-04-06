@@ -1,31 +1,73 @@
 import { useState, useContext } from 'react';
 import API from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function Login() {
-  const { setUser } = useContext(AuthContext);
+  //const { setUser } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
 
   const login = async () => {
-    const res = await API.post('/auth/login', form);
-    localStorage.setItem('token', res.data.token);
-    localStorage.setItem('user', JSON.stringify(res.data.user)); 
-    
-    window.location.href = res.data.user.role === "ADMIN" ? "/admin" : "/student";
-  };
+    try{
+      const res = await API.post('/auth/login', form);
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.user))
+      
+      //setUser(res.data.user); 
 
+      if (res.data.user.role === "ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate("/student");
+      }
+    } catch (err) {
+      alert("Login failed");
+    }
+  };
   return (
-    <div className="p-10">
-      <input
-        placeholder="Email"
-        onChange={(e) => setForm({ ...form, email: e.target.value })}
-      />
-      <input
-        placeholder="Password"
-        type="password"
-        onChange={(e) => setForm({ ...form, password: e.target.value })}
-      />
-      <button onClick={login}>Login</button>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      
+      <div className="bg-white p-8 rounded-lg shadow-md w-96">
+
+        {/* Heading */}
+        <h2 className="text-2xl font-bold text-center mb-6">
+          Login Page
+        </h2>
+
+        {/* Email */}
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full mb-4 p-2 border rounded"
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
+
+        {/* Password */}
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full mb-6 p-2 border rounded"
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+        />
+
+        {/* Button */}
+        <button
+          onClick={login}
+          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+        >
+          Login
+        </button>
+
+        {/* Signup Link */}
+        <p className="text-center mt-4">
+          Not a user?{" "}
+          <Link to="/register" className="text-blue-500 hover:underline">
+            Sign up
+          </Link>
+        </p>
+
+      </div>
     </div>
   );
 }

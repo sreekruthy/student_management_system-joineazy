@@ -8,6 +8,7 @@ export default function StudentDashboard() {
   const [progress, setProgress] = useState(0);
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [confirmingId, setConfirmingId] = useState(null);
 
   useEffect(() => {
     API.get("/assignments")
@@ -20,13 +21,32 @@ export default function StudentDashboard() {
       .then(res => setGroup(res.data));
   }, []);
 
+  const fetchProgress = async () => {
+  const res = await API.get(`/submissions/progress?group_id=${group.id}`);
+  console.log("PROGRESS FROM BACKEND:", res.data.progress); // 👈 ADD THIS
+  setProgress(res.data.progress);
+};
+
+  useEffect(() => {
+  if (!group?.id) return;
+  if (group) {
+    fetchProgress();
+  }
+}, [group]);
+
+  
   const confirm = async (id) => {
+    if (!group) return alert("No group");
+
     await API.post("/submissions/confirm", {
       assignment_id: id,
       group_id: group.id
     });
+    
     alert("Submitted");
+    fetchProgress();
 
+    if (!group?.id) return;
     const res = await API.get(`/submissions/progress?group_id=${group.id}`);
     setProgress(res.data.progress);
   };
@@ -77,12 +97,38 @@ if (!group) {
               Open Link
             </a>
 
-            <button
-              onClick={() => confirm(a.id)}
+            {confirmingId === a.id ? (
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Confirm submission for this assignment?
+                </p>
+                
+                <button
+                onClick={() => {
+                  confirm(a.id);
+                  setConfirmingId(null);
+                }}
+                className="bg-green-600 text-white px-3 py-2 rounded mr-2"
+                >
+                  Yes, I have submitted
+                </button>
+                
+                <button
+                onClick={() => setConfirmingId(null)}
+                className="bg-gray-400 text-white px-3 py-2 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+              ) : (
+              <button
+              onClick={() => setConfirmingId(a.id)}
               className="bg-green-500 text-white px-3 py-2 mt-2 rounded"
-           >
-              Confirm Submission
-            </button>
+              >
+                Confirm Submission
+              </button>
+            
+            )}
           </div>
         ))}
       </div>

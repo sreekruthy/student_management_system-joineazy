@@ -38,5 +38,5 @@ CREATE TABLE submissions (
     confirmed_by INT REFERENCES users(id),
     status VARCHAR(20) DEFAULT 'CONFIRMED',
     confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(assignment_id, group_id)
+    UNIQUE(assignment_id, group_id, confirmed_by)
 );
