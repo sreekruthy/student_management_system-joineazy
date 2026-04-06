@@ -12,5 +12,23 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  backend:
+    build: ./backend
+    container_name: student_backend
+    ports:
+      - "5001:5001"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://postgres:abcd@postgres:5432/student_prof_db
+
+  frontend:
+    build: ./frontend
+    container_name: student_frontend
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
