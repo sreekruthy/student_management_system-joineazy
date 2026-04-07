@@ -8,7 +8,7 @@ exports.confirmSubmission = async (req, res) => {
     await pool.query(
       `INSERT INTO submissions (assignment_id, group_id, confirmed_by)
        VALUES ($1,$2,$3)
-       ON CONFLICT (assignment_id, group_id) DO NOTHING`,
+       ON CONFLICT (assignment_id, group_id, confirmed_by) DO NOTHING`,
       [assignment_id, group_id, req.user.id]
     );
 
