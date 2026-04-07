@@ -153,11 +153,7 @@ CREATE TABLE submissions (
 
 ### Relationships
 
-* One user - Many groups (created_by)
-* One group - Many members
-* Many-to-many: users - groups (via group_members)
-* One assignment - Many submissions
-* One group - Many submissions
+![ER Diagram](images/er.png)
 
 
 ## Architecture Overview
