@@ -151,8 +151,6 @@ CREATE TABLE submissions (
 
 ## Database Schema & Relationships
 
-### Relationships
-
 ![ER Diagram](images/er.png)
 
 
@@ -198,14 +196,6 @@ CREATE TABLE submissions (
 * The frontend is built using npm run build and served as static files.
 * Ports are mapped for access: frontend (3001), backend (5001), database (5433).
 
+![Docker](images/docker.png)
 
-## ⭐ Conclusion
 
-This project demonstrates:
-
-* Full-stack development
-* Database design
-* API architecture
-* Real-world system implementation
-
----
