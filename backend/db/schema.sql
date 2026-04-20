@@ -40,3 +40,32 @@ CREATE TABLE submissions (
     confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(assignment_id, group_id, confirmed_by)
 );
+
+-- Add courses table
+CREATE TABLE courses (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  created_by INT REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Enroll students in courses
+CREATE TABLE enrolled_courses (
+  id SERIAL PRIMARY KEY,
+  course_id INT REFERENCES courses(id) ON DELETE CASCADE,
+  user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(course_id, user_id)
+);
+
+-- Link assignments to courses
+ALTER TABLE assignments ADD COLUMN course_id INT REFERENCES courses(id);
+
+-- Track group leader
+ALTER TABLE groups ADD COLUMN leader_id INT REFERENCES users(id);
+-- Set existing groups' leader to creator
+UPDATE groups SET leader_id = created_by WHERE leader_id IS NULL;
+
+-- Add acknowledgment tracking
+ALTER TABLE submissions ADD COLUMN acknowledged BOOLEAN DEFAULT FALSE;
+ALTER TABLE submissions ADD COLUMN acknowledged_at TIMESTAMP;
