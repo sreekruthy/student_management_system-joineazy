@@ -27,8 +27,16 @@ export function AuthProvider({ children }) {
     }else{
       localStorage.removeItem('user');
     }
-    setUser(userData);
+    setUserState(userData);
   }, []);
+
+  const login = useCallback(async (form) => {
+    const res = await API.post('/auth/login', form);
+    localStorage.setItem('token', res.data.token);
+    setUser(res.data.user);
+    return res.data.user;
+  }, [setUser]);
+
 
   // Centralised register
   const register = useCallback(async (form) => {
@@ -65,4 +73,4 @@ export function AuthProvider({ children }) {
       </AuthContext.Provider>
 
   );
-};
+}
