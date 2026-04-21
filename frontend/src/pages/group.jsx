@@ -56,7 +56,7 @@ try{
     <>
     <Navbar />
     <div className="p-4">
-      //error message
+
     {error && (
      <p className="text-red-500 text-sm mb-3">{error}</p>
      )}
