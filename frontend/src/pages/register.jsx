@@ -1,5 +1,4 @@
 import { useState } from "react";
-import API from "../services/api";
 import {useAuth} from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 
@@ -25,7 +24,7 @@ export default function Register() {
       const user = await register(form);
       navigate(user.role === 'ADMIN' ? '/admin' : '/student');
     } catch (err) {
-      setError(err.response.data?.msg || 'Registration failed');
+      setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -74,7 +73,7 @@ export default function Register() {
 
 )}
 
-<button onClick={register} disabled={loading}
+<button onClick={handleRegister} disabled={loading}
 
   className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 disabled:opacity-50">
 

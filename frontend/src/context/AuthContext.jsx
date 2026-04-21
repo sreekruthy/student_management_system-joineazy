@@ -40,16 +40,21 @@ export function AuthProvider({ children }) {
 
   // Centralised register
   const register = useCallback(async (form) => {
-
+    try{
     const res = await API.post('/auth/register', form);
 
     localStorage.setItem('token', res.data.token);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
 
     setUser(res.data.user);
 
     return res.data.user;
 
-  }, [setUser]);
+  } catch(err){
+    throw new Error(err.response?.data?.msg || 'Registration failed');
+  }
+});
+
 
   // Centralised logout — one place to clear everything
   const logout = useCallback(async () => {
