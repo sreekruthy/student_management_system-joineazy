@@ -16,7 +16,7 @@ export default function Login() {
     setLoading(true);
 
     try{
-      const user = await login(form.email, form.password);
+      const user = await login(form);
       
       navigate(user.role === 'ADMIN' ? '/admin' : '/student');
     } catch (err) {
@@ -56,21 +56,13 @@ export default function Login() {
 
 )}
 
-<button onClick={login} disabled={loading}
+<button onClick={handleLogin} disabled={loading}
 
   className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-50">
 
   {loading ? 'Logging in...' : 'Login'}
 
 </button>
-
-        {/* Button */}
-        <button
-          onClick={login}
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-        >
-          Login
-        </button>
 
         {/* Signup Link */}
         <p className="text-center mt-4">
