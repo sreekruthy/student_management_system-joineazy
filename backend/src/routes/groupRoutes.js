@@ -9,6 +9,7 @@ const adminOnly = (req, res, next) => {
 };
 
 router.post('/', auth, group.createGroup);
+console.log('group exports:', Object.keys(group)); // add this
 router.post('/add', auth, group.addMember);
 router.get('/my', auth, group.getMyGroup);
 router.get('/', auth, adminOnly, group.getAllGroups); 
