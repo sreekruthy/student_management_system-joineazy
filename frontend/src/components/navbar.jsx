@@ -1,14 +1,12 @@
 import { Link, useNavigate } from "react-router-dom";
+import {useAuth} from "../context/AuthContext";
 
 export default function Navbar() {
+  const {user, logout} = useAuth();
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user"));
-
-  const logout = () => {
-    localStorage.clear();
-    navigate("/");
-  };
-
+  const handleLogout = async () => {
+    await logout();
+  }
   if (!user) return null; // don't show navbar if not logged in
 
   return (
@@ -27,7 +25,7 @@ export default function Navbar() {
         <Link to="/group" className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600">Group</Link>
 
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="bg-red-500 px-3 py-1 rounded hover:bg-red-600"
         >
           Logout

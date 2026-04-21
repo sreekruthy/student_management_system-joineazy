@@ -11,6 +11,11 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d student_prof_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build: ./backend
@@ -18,9 +23,15 @@ services:
     ports:
       - "5001:5001"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://postgres:abcd@postgres:5432/student_prof_db
+      PORT: 5001
+      JWT_SECRET: change_this_to_a_long_random_string
+      NODE_ENV: development
+      FRONTEND_URL: http://localhost:3001
+      DB_SSL: "false"
 
   frontend:
     build: ./frontend
@@ -29,6 +40,8 @@ services:
       - "3001:3000"
     depends_on:
       - backend
+    environment:
+      VITE_API_URL: http://localhost:5001/api
 
 volumes:
   pgdata:

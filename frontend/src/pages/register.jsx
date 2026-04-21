@@ -1,10 +1,12 @@
 import { useState } from "react";
 import API from "../services/api";
+import {useAuth} from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { set } from "../../../backend/src/app";
 
 
 export default function Register() {
+  const {register} = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -16,16 +18,12 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading,setLoading] = useState(false);
 
-  const register = async () => {
+  const handleRegister = async () => {
     setError('');
     setLoading(true);
     try {
-      const res = await API.post("/auth/register", form);
-      alert("Registered successfully!");
-
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
-      navigate(res.data.user.role === 'ADMIN' ? '/admin' : '/student');
+      const user = await register(form);
+      navigate(user.role === 'ADMIN' ? '/admin' : '/student');
     } catch (err) {
       setError(err.response.data?.msg || 'Registration failed');
     } finally {
