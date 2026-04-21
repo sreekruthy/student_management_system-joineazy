@@ -5,10 +5,12 @@ const courseRoutes = require('./routes/courses');
 const app = express();
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: 'https://student-management-system-joineazy-sreekruthys-projects.vercel.app',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
-
+app.options('*', cors()); // Enable pre-flight for all routes
 app.use(express.json());
 
 app.use('/api/auth', require('./routes/authRoutes'));
