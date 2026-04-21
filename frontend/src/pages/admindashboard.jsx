@@ -5,20 +5,30 @@ import LoadingSpinner from "../components/ui/LoadingSpinner";
 import StatusBadge from "../components/ui/StatusBadge";
 
 export default function AdminDashboard() {
-  const [courses, setCourses]       = useState([]);
+  const [courses, setCourses]         = useState([]);
   const [selectedCourse, setSelected] = useState(null);
-  const [analytics, setAnalytics]   = useState(null);
+  const [analytics, setAnalytics]     = useState(null);
   const [assignments, setAssignments] = useState([]);
-  const [groups, setGroups]         = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState('');
+  const [groups, setGroups]           = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
 
   // Create assignment form
   const [form, setForm] = useState({
     title: '', description: '', due_date: '', onedrive_link: '', course_id: ''
   });
-  const [creating, setCreating] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating]       = useState(false);
+  const [showForm, setShowForm]       = useState(false);
+
+  // Create course form
+  const [courseForm, setCourseForm]   = useState({ title: '', description: '', studentEmails: '' });
+  const [showCourseForm, setShowCourseForm] = useState(false);
+  const [creatingCourse, setCreatingCourse] = useState(false);
+  const [courseError, setCourseError] = useState('');
+  const [courseSuccess, setCourseSuccess] = useState('');
+
+  const fetchCourses = () =>
+    API.get('/courses/teaching').then(res => setCourses(res.data));
 
   useEffect(() => {
     Promise.all([
@@ -31,7 +41,6 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Load analytics when course is selected
   useEffect(() => {
     if (!selectedCourse) return;
     API.get(`/assignments?course_id=${selectedCourse.id}`)
@@ -61,6 +70,29 @@ export default function AdminDashboard() {
     } finally { setCreating(false); }
   };
 
+  const createCourse = async () => {
+    if (!courseForm.title.trim()) {
+      return setCourseError('Course title is required');
+    }
+    setCreatingCourse(true); setCourseError(''); setCourseSuccess('');
+    try {
+      const emailList = courseForm.studentEmails
+        ? courseForm.studentEmails.split(',').map(e => e.trim()).filter(Boolean)
+        : [];
+      await API.post('/courses', {
+        title: courseForm.title.trim(),
+        description: courseForm.description.trim(),
+        studentEmails: emailList,
+      });
+      setCourseSuccess(`Course "${courseForm.title}" created successfully!`);
+      setCourseForm({ title: '', description: '', studentEmails: '' });
+      setShowCourseForm(false);
+      fetchCourses();
+    } catch (err) {
+      setCourseError(err.response?.data?.error || 'Failed to create course');
+    } finally { setCreatingCourse(false); }
+  };
+
   if (loading) return <div className="flex justify-center items-center h-screen"><LoadingSpinner size="lg" /></div>;
 
   return (
@@ -70,6 +102,7 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-bold mb-6">Professor Dashboard</h1>
 
         {error && <p className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">{error}</p>}
+        {courseSuccess && <p className="text-green-600 text-sm mb-4 p-3 bg-green-50 rounded">{courseSuccess}</p>}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
@@ -86,16 +119,61 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* Create assignment button */}
+        {/* Action buttons row */}
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">
             {selectedCourse ? `${selectedCourse.title} — Assignments` : 'My Courses'}
           </h2>
-          <button onClick={() => setShowForm(v => !v)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
-            {showForm ? 'Cancel' : '+ New Assignment'}
-          </button>
+          <div className="flex gap-2">
+            {!selectedCourse && (
+              <button
+                onClick={() => { setShowCourseForm(v => !v); setShowForm(false); }}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 text-sm">
+                {showCourseForm ? 'Cancel' : '+ New Course'}
+              </button>
+            )}
+            <button
+              onClick={() => { setShowForm(v => !v); setShowCourseForm(false); }}
+              className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
+              {showForm ? 'Cancel' : '+ New Assignment'}
+            </button>
+          </div>
         </div>
+
+        {/* Create course form */}
+        {showCourseForm && (
+          <div className="bg-white rounded-xl shadow p-5 mb-6 border border-green-100">
+            <h3 className="font-semibold mb-4 text-green-700">Create New Course</h3>
+            {courseError && <p className="text-red-500 text-sm mb-3">{courseError}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                placeholder="Course title *"
+                value={courseForm.title}
+                className="border p-2 rounded"
+                onChange={e => setCourseForm({ ...courseForm, title: e.target.value })}
+              />
+              <input
+                placeholder="Student emails (comma separated, optional)"
+                value={courseForm.studentEmails}
+                className="border p-2 rounded"
+                onChange={e => setCourseForm({ ...courseForm, studentEmails: e.target.value })}
+              />
+              <textarea
+                placeholder="Description (optional)"
+                value={courseForm.description}
+                className="border p-2 rounded sm:col-span-2"
+                rows={3}
+                onChange={e => setCourseForm({ ...courseForm, description: e.target.value })}
+              />
+            </div>
+            <button
+              onClick={createCourse}
+              disabled={creatingCourse}
+              className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50">
+              {creatingCourse ? 'Creating...' : 'Create Course'}
+            </button>
+          </div>
+        )}
 
         {/* Create assignment form */}
         {showForm && (
@@ -121,6 +199,11 @@ export default function AdminDashboard() {
                 {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             </div>
+            {courses.length === 0 && (
+              <p className="text-amber-600 text-sm mt-2">
+                No courses yet. Create a course first using the "+ New Course" button.
+              </p>
+            )}
             <button onClick={createAssignment} disabled={creating}
               className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50">
               {creating ? 'Creating...' : 'Create Assignment'}
@@ -130,20 +213,27 @@ export default function AdminDashboard() {
 
         {/* Course list or assignment list */}
         {!selectedCourse ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {courses.map(c => (
-              <div key={c.id} onClick={() => setSelected(c)}
-                className="bg-white rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition">
-                <h3 className="font-bold text-lg mb-1">{c.title}</h3>
-                <p className="text-gray-500 text-sm mb-3">{c.description}</p>
-                <div className="flex gap-4 text-xs text-gray-400">
-                  <span>{c.student_count} students</span>
-                  <span>{c.assignment_count} assignments</span>
-                  <span>{c.submission_count} submissions</span>
+          courses.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-lg mb-2">No courses yet</p>
+              <p className="text-sm">Click "+ New Course" to create your first course.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {courses.map(c => (
+                <div key={c.id} onClick={() => setSelected(c)}
+                  className="bg-white rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition">
+                  <h3 className="font-bold text-lg mb-1">{c.title}</h3>
+                  <p className="text-gray-500 text-sm mb-3">{c.description}</p>
+                  <div className="flex gap-4 text-xs text-gray-400">
+                    <span>{c.student_count} students</span>
+                    <span>{c.assignment_count} assignments</span>
+                    <span>{c.submission_count} submissions</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )
         ) : (
           <>
             <button onClick={() => { setSelected(null); setAssignments([]); setAnalytics(null); }}
