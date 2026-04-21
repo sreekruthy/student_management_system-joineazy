@@ -3,7 +3,7 @@ import API from "../services/api";
 import ProgressBar from "../components/ui/ProgressBar";
 import StatusBadge from "../components/ui/StatusBadge";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
-import Navbar from "../components/Navbar";
+import Navbar from "../components/navbar";
 
 export default function StudentDashboard() {
   const [courses, setCourses]         = useState([]);

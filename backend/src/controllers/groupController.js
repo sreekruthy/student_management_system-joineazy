@@ -7,7 +7,6 @@ exports.createGroup = async (req, res) => {
   if (!group_name || group_name.trim() === '') {
 
     return res.status(400).json({ msg: 'Group name is required' });
-
   }
 
   try{
