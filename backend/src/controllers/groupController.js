@@ -1,3 +1,6 @@
+//groupController.js 
+ 
+
 const pool = require('../db');
 
 exports.createGroup = async (req, res) => {
