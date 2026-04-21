@@ -1,6 +1,8 @@
 import { useState } from "react";
 import API from "../services/api";
 import { useNavigate, Link } from "react-router-dom";
+import { set } from "../../../backend/src/app";
+
 
 export default function Register() {
   const navigate = useNavigate();
@@ -11,16 +13,23 @@ export default function Register() {
     password: "",
     role: "STUDENT",
   });
+  const [error, setError] = useState('');
+  const [loading,setLoading] = useState(false);
 
   const register = async () => {
+    setError('');
+    setLoading(true);
     try {
-      await API.post("/auth/register", form);
+      const res = await API.post("/auth/register", form);
       alert("Registered successfully!");
 
-      // redirect to login
-      navigate("/");
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      navigate(res.data.user.role === 'ADMIN' ? '/admin' : '/student');
     } catch (err) {
-      alert("Registration failed");
+      setError(err.response.data?.msg || 'Registration failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -61,12 +70,19 @@ export default function Register() {
           <option value="ADMIN">Professor</option>
         </select>
 
-        <button
-          onClick={register}
-          className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
-        >
-          Register
-        </button>
+        {error && (
+
+  <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
+
+)}
+
+<button onClick={register} disabled={loading}
+
+  className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 disabled:opacity-50">
+
+  {loading ? 'Registering...' : 'Register'}
+
+</button>
 
         <p className="text-center mt-4">
           Already have an account?{" "}

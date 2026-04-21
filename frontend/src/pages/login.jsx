@@ -8,21 +8,22 @@ export default function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
 
+  const [error,setError] = useState('');
+  const [loading,setLoading] = useState(false);
+
   const login = async () => {
+    setError('');
+    setLoading(true);
+
     try{
       const res = await API.post('/auth/login', form);
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user))
-      
-      //setUser(res.data.user); 
-
-      if (res.data.user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/student");
-      }
+      navigate(res.data.user.role === 'ADMIN' ? '/admin' : '/student');
     } catch (err) {
-      alert("Login failed");
+      setError(err.response.data?.msg || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
   return (
@@ -50,6 +51,19 @@ export default function Login() {
           className="w-full mb-6 p-2 border rounded"
           onChange={(e) => setForm({ ...form, password: e.target.value })}
         />
+        {error && (
+
+  <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
+
+)}
+
+<button onClick={login} disabled={loading}
+
+  className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-50">
+
+  {loading ? 'Logging in...' : 'Login'}
+
+</button>
 
         {/* Button */}
         <button

@@ -2,12 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/authMiddleware');
 const pool = require('../db');
-const ctrl = require('../controllers/submissionController');
-
-router.post('/confirm', verifyToken, ctrl.confirmSubmission);
-router.get('/', verifyToken, ctrl.getSubmissions);
-router.get('/progress', verifyToken, ctrl.getGroupProgress);
-
 
 // Confirm submission
 router.post('/confirm', verifyToken, async (req, res) => {
@@ -58,6 +52,11 @@ router.post('/acknowledge', verifyToken, async (req, res) => {
 // Get progress for a group
 router.get('/progress', verifyToken, async (req, res) => {
   const { group_id } = req.query;
+  if (!group_id || group_id === 'undefined') {
+
+    return res.status(400).json({ message: 'group_id is required' });
+
+  }
   try {
     const total = await pool.query(`SELECT COUNT(*) as total FROM assignments`);
     const submitted = await pool.query(
@@ -69,15 +68,70 @@ router.get('/progress', verifyToken, async (req, res) => {
        WHERE group_id = $1 AND acknowledged = TRUE`,
       [group_id]
     );
+    const memberTotal = await pool.query(
+
+      `SELECT COUNT(*) AS total FROM group_members WHERE group_id = $1`,
+
+      [group_id]
+
+    );
+
+    const latestAssignment = await pool.query(
+
+      `SELECT id FROM assignments ORDER BY created_at DESC LIMIT 1`
+
+    );
+
+    const memberConfirmed = latestAssignment.rows[0]
+
+      ? await pool.query(
+
+          `SELECT COUNT(DISTINCT confirmed_by) AS confirmed
+
+           FROM submissions
+
+           WHERE group_id = $1 AND assignment_id = $2`,
+
+          [group_id, latestAssignment.rows[0].id]
+
+        )
+
+      : { rows: [{ confirmed: 0 }] };
+
+    const totalAssignments    = parseInt(total.rows[0].total);
+    const totalAcknowledged  = parseInt(acknowledged.rows[0].acknowledged);
+    const totalSubmitted    = parseInt(submitted.rows[0].submitted);
+    const totalMembers      = parseInt(memberTotal.rows[0].total);
+    const membersConfirmed  = parseInt(memberConfirmed.rows[0].confirmed);
+
     res.json({
-      total: parseInt(total.rows[0].total),
-      submitted: parseInt(submitted.rows[0].submitted),
-      acknowledged: parseInt(acknowledged.rows[0].acknowledged),
-    });
-  } catch (err) {
+      totalAssignments,
+      submitted:    totalSubmitted,
+      acknowledged: totalAcknowledged,
+
+      submittedPct:    totalAssignments === 0 ? 0
+        : Math.round((totalSubmitted / totalAssignments) * 100),
+
+      acknowledgedPct: totalAssignments === 0 ? 0
+
+        : Math.round((totalAcknowledged / totalAssignments) * 100),
+
+      // Secondary metric — member participation on latest assignment
+
+      totalMembers,
+
+      membersConfirmed,
+
+      memberPct: totalMembers === 0 ? 0
+
+        : Math.round((membersConfirmed / totalMembers) * 100),
+
+  });
+ } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Get all submissions (professor)
 router.get('/', verifyToken, async (req, res) => {

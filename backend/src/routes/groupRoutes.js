@@ -1,10 +1,16 @@
 const router = require('express').Router();
 const auth = require('../middleware/authMiddleware');
 const group = require('../controllers/groupController');
+const adminOnly = (req, res, next) => {
+    if (req.user?.role !== 'ADMIN') {
+        return res.status(403).json({ msg: "Admin access required" });
+    }
+    next();
+};
 
 router.post('/', auth, group.createGroup);
 router.post('/add', auth, group.addMember);
 router.get('/my', auth, group.getMyGroup);
-router.get('/', auth, group.getAllGroups); 
+router.get('/', auth, adminOnly, group.getAllGroups); 
 
 module.exports = router;

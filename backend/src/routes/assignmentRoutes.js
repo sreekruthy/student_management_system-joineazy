@@ -5,40 +5,70 @@ const pool = require('../db');
 
 const ctrl = require('../controllers/assignmentController');
 
-router.post('/', verifyToken, ctrl.createAssignment);
-router.get('/', verifyToken, ctrl.getAssignments);
-
 // Get assignments for a course
 router.get('/', verifyToken, async (req, res) => {
+
   const { course_id } = req.query;
+
   try {
-    let query = `SELECT a.*, u.name as professor_name FROM assignments a JOIN users u ON u.id = a.created_by`;
+
+    let query  = `SELECT a.*, u.name AS professor_name
+
+                  FROM assignments a
+
+                  JOIN users u ON u.id = a.created_by`;
+
     const params = [];
+
     if (course_id) {
+
       query += ` WHERE a.course_id = $1`;
+
       params.push(course_id);
+
     }
+
     query += ` ORDER BY a.due_date ASC`;
+
     const result = await pool.query(query, params);
+
     res.json(result.rows);
+
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 });
 
 // Create assignment
 router.post('/', verifyToken, async (req, res) => {
+
   const { title, description, due_date, onedrive_link, course_id } = req.body;
+
+  if (!req.user?.id) return res.status(401).json({ message: 'Not authenticated' });
+
   try {
+
     const result = await pool.query(
+
       `INSERT INTO assignments (title, description, due_date, onedrive_link, created_by, course_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+
       [title, description, due_date, onedrive_link, req.user.id, course_id]
+
     );
+
     res.json(result.rows[0]);
+
   } catch (err) {
+
     res.status(500).json({ error: err.message });
+
   }
+
 });
 
 // Get assignment submission analytics (professor)

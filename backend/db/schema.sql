@@ -69,3 +69,4 @@ UPDATE groups SET leader_id = created_by WHERE leader_id IS NULL;
 -- Add acknowledgment tracking
 ALTER TABLE submissions ADD COLUMN acknowledged BOOLEAN DEFAULT FALSE;
 ALTER TABLE submissions ADD COLUMN acknowledged_at TIMESTAMP;
+

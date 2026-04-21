@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
-import ProgressBar from "../components/progressbar";
+import ProgressBar from "../components/ui/ProgressBar";
 import Navbar from "../components/navbar";
 
 export default function StudentDashboard() {
   const [assignments, setAssignments] = useState([]);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState({
+    total: 0, submitted: 0, acknowledged: 0,
+    submittedPct:0, acknowledgedPct:0,
+    totalMembers: 0,membersConfirmed: 0, memberPct: 0,
+  });
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState(null);
@@ -24,7 +28,7 @@ export default function StudentDashboard() {
   const fetchProgress = async () => {
   const res = await API.get(`/submissions/progress?group_id=${group.id}`);
   console.log("PROGRESS FROM BACKEND:", res.data.progress); // 👈 ADD THIS
-  setProgress(res.data.progress);
+  setProgress(res.data);
 };
 
   useEffect(() => {
@@ -80,9 +84,38 @@ if (!group) {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Student Dashboard</h1>
 
-      <div className="mt-4">
+      <div className="mt-4 space-y-3">
         <p className="mb-1">Progress</p>
-        <ProgressBar value={progress} />
+        <ProgressBar 
+        label="Assignments submitted" 
+        value={progress.submitted}
+        max={progress.total}
+        color="indigo"
+        showBadge
+        />
+        <ProgressBar
+
+    label="Leader acknowledged"
+
+    value={progress.acknowledged}
+
+    max={progress.total}
+
+    color="green"
+
+    showBadge
+  />
+  {progress.total > 0 && (
+
+    <p className="text-xs text-gray-500">
+
+      {progress.membersConfirmed}/{progress.totalMembers} members confirmed
+
+      the latest assignment
+
+    </p>
+
+  )}
       </div>
 
       <div className="grid grid-cols-3 gap-4 mt-6">
