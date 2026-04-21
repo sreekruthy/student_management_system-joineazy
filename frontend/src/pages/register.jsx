@@ -2,7 +2,7 @@ import { useState } from "react";
 import API from "../services/api";
 import {useAuth} from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { set } from "../../../backend/src/app";
+
 
 
 export default function Register() {
