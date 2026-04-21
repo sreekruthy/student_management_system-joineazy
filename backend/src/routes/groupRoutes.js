@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const auth = require('../middleware/authMiddleware');
+const {verifyToken: auth} = require('../middleware/authMiddleware');
 console.log('auth type:', typeof auth);
 const group = require('../controllers/groupController');
 console.log('EXPORTS:', JSON.stringify(Object.keys(group)));
