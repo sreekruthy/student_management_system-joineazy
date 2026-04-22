@@ -20,20 +20,17 @@ router.post('/confirm', verifyToken, async (req, res) => {
   }
 });
 
-// Acknowledge submission — only group leader; propagates to all members
+// Acknowledge — leader only; marks all group members' submissions for that assignment
 router.post('/acknowledge', verifyToken, async (req, res) => {
   const { assignment_id, group_id } = req.body;
   try {
-    // Check if user is group leader
     const group = await pool.query(`SELECT leader_id FROM groups WHERE id = $1`, [group_id]);
     if (!group.rows[0] || group.rows[0].leader_id !== req.user.id) {
       return res.status(403).json({ error: 'Only the group leader can acknowledge submissions' });
     }
-    // Get all group members
     const members = await pool.query(
       `SELECT user_id FROM group_members WHERE group_id = $1`, [group_id]
     );
-    // Upsert acknowledged submission for each member
     for (const member of members.rows) {
       await pool.query(
         `INSERT INTO submissions (assignment_id, group_id, confirmed_by, status, acknowledged, acknowledged_at)
@@ -49,91 +46,133 @@ router.post('/acknowledge', verifyToken, async (req, res) => {
   }
 });
 
-// Get progress for a group
-router.get('/progress', verifyToken, async (req, res) => {
+// ─── GROUP PROGRESS (top-level) ───────────────────────────────────────────────
+// Returns: how many GROUP assignments this group has fully submitted (at least one
+// member confirmed) out of all group assignments in the courses they are enrolled in,
+// plus how many are fully acknowledged by the leader.
+router.get('/progress/group', verifyToken, async (req, res) => {
   const { group_id } = req.query;
   if (!group_id || group_id === 'undefined') {
-
     return res.status(400).json({ message: 'group_id is required' });
-
   }
   try {
-    const total = await pool.query(`SELECT COUNT(*) as total FROM assignments`);
-    const submitted = await pool.query(
-      `SELECT COUNT(DISTINCT assignment_id) as submitted FROM submissions WHERE group_id = $1`,
+    // Total group assignments across all courses the group's members are enrolled in
+    const totalRes = await pool.query(
+      `SELECT COUNT(DISTINCT a.id) AS total
+       FROM assignments a
+       JOIN enrolled_courses ec ON ec.course_id = a.course_id
+       JOIN group_members gm ON gm.user_id = ec.user_id
+       WHERE gm.group_id = $1 AND a.type = 'group'`,
       [group_id]
     );
-    const acknowledged = await pool.query(
-      `SELECT COUNT(DISTINCT assignment_id) as acknowledged FROM submissions
-       WHERE group_id = $1 AND acknowledged = TRUE`,
+
+    // Group assignments where at least one member of this group submitted
+    const submittedRes = await pool.query(
+      `SELECT COUNT(DISTINCT s.assignment_id) AS submitted
+       FROM submissions s
+       JOIN assignments a ON a.id = s.assignment_id
+       WHERE s.group_id = $1 AND a.type = 'group'`,
       [group_id]
     );
-    const memberTotal = await pool.query(
 
-      `SELECT COUNT(*) AS total FROM group_members WHERE group_id = $1`,
-
+    // Group assignments where at least one submission is acknowledged
+    const acknowledgedRes = await pool.query(
+      `SELECT COUNT(DISTINCT s.assignment_id) AS acknowledged
+       FROM submissions s
+       JOIN assignments a ON a.id = s.assignment_id
+       WHERE s.group_id = $1 AND a.type = 'group' AND s.acknowledged = TRUE`,
       [group_id]
-
     );
 
-    const latestAssignment = await pool.query(
+    const total        = parseInt(totalRes.rows[0].total);
+    const submitted    = parseInt(submittedRes.rows[0].submitted);
+    const acknowledged = parseInt(acknowledgedRes.rows[0].acknowledged);
 
-      `SELECT id FROM assignments ORDER BY created_at DESC LIMIT 1`
-
-    );
-
-    const memberConfirmed = latestAssignment.rows[0]
-
-      ? await pool.query(
-
-          `SELECT COUNT(DISTINCT confirmed_by) AS confirmed
-
-           FROM submissions
-
-           WHERE group_id = $1 AND assignment_id = $2`,
-
-          [group_id, latestAssignment.rows[0].id]
-
-        )
-
-      : { rows: [{ confirmed: 0 }] };
-
-    const totalAssignments    = parseInt(total.rows[0].total);
-    const totalAcknowledged  = parseInt(acknowledged.rows[0].acknowledged);
-    const totalSubmitted    = parseInt(submitted.rows[0].submitted);
-    const totalMembers      = parseInt(memberTotal.rows[0].total);
-    const membersConfirmed  = parseInt(memberConfirmed.rows[0].confirmed);
-
-    res.json({
-      totalAssignments,
-      submitted:    totalSubmitted,
-      acknowledged: totalAcknowledged,
-
-      submittedPct:    totalAssignments === 0 ? 0
-        : Math.round((totalSubmitted / totalAssignments) * 100),
-
-      acknowledgedPct: totalAssignments === 0 ? 0
-
-        : Math.round((totalAcknowledged / totalAssignments) * 100),
-
-      // Secondary metric — member participation on latest assignment
-
-      totalMembers,
-
-      membersConfirmed,
-
-      memberPct: totalMembers === 0 ? 0
-
-        : Math.round((membersConfirmed / totalMembers) * 100),
-
-  });
- } catch (err) {
+    res.json({ total, submitted, acknowledged });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// ─── INDIVIDUAL PROGRESS (top-level) ─────────────────────────────────────────
+// Returns: how many INDIVIDUAL assignments this student submitted out of total
+// individual assignments in their enrolled courses.
+router.get('/progress/individual', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    // Total individual assignments in courses this student is enrolled in
+    const totalRes = await pool.query(
+      `SELECT COUNT(DISTINCT a.id) AS total
+       FROM assignments a
+       JOIN enrolled_courses ec ON ec.course_id = a.course_id
+       WHERE ec.user_id = $1 AND a.type = 'individual'`,
+      [userId]
+    );
 
-// Get all submissions (professor)
+    // Individual assignments this student submitted
+    const submittedRes = await pool.query(
+      `SELECT COUNT(DISTINCT s.assignment_id) AS submitted
+       FROM submissions s
+       JOIN assignments a ON a.id = s.assignment_id
+       WHERE s.confirmed_by = $1 AND a.type = 'individual'`,
+      [userId]
+    );
+
+    const total     = parseInt(totalRes.rows[0].total);
+    const submitted = parseInt(submittedRes.rows[0].submitted);
+
+    res.json({ total, submitted });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PER-ASSIGNMENT GROUP BREAKDOWN ──────────────────────────────────────────
+// Returns member-by-member submission + acknowledgment status for one assignment
+router.get('/breakdown/:assignment_id', verifyToken, async (req, res) => {
+  const { assignment_id } = req.params;
+  const { group_id } = req.query;
+  if (!group_id) return res.status(400).json({ message: 'group_id is required' });
+  try {
+    // All members of the group
+    const membersRes = await pool.query(
+      `SELECT u.id, u.name, u.email
+       FROM users u
+       JOIN group_members gm ON gm.user_id = u.id
+       WHERE gm.group_id = $1`,
+      [group_id]
+    );
+
+    // Which members submitted this assignment
+    const submissionsRes = await pool.query(
+      `SELECT confirmed_by, acknowledged
+       FROM submissions
+       WHERE assignment_id = $1 AND group_id = $2`,
+      [assignment_id, group_id]
+    );
+
+    const submittedMap = {};
+    submissionsRes.rows.forEach(s => {
+      submittedMap[s.confirmed_by] = { submitted: true, acknowledged: s.acknowledged };
+    });
+
+    const members = membersRes.rows.map(m => ({
+      ...m,
+      submitted:    !!submittedMap[m.id],
+      acknowledged: submittedMap[m.id]?.acknowledged || false,
+    }));
+
+    const totalMembers    = members.length;
+    const submittedCount  = members.filter(m => m.submitted).length;
+    const acknowledgedCount = members.filter(m => m.acknowledged).length;
+
+    res.json({ members, totalMembers, submittedCount, acknowledgedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all submissions
 router.get('/', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(
