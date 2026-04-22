@@ -70,3 +70,5 @@ UPDATE groups SET leader_id = created_by WHERE leader_id IS NULL;
 ALTER TABLE submissions ADD COLUMN acknowledged BOOLEAN DEFAULT FALSE;
 ALTER TABLE submissions ADD COLUMN acknowledged_at TIMESTAMP;
 
+-- Add assignment type (group or individual)
+ALTER TABLE assignments ADD COLUMN type VARCHAR(10) DEFAULT 'group' CHECK (type IN ('group', 'individual'));
