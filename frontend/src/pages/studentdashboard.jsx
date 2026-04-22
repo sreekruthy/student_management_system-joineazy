@@ -6,17 +6,17 @@ import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Navbar from "../components/navbar";
 
 export default function StudentDashboard() {
-  const [courses, setCourses]         = useState([]);
-  const [selectedCourse, setSelected] = useState(null);
-  const [assignments, setAssignments] = useState([]);
-  const [group, setGroup]             = useState(null);
-  const [progress, setProgress]       = useState({ total: 0, submitted: 0, acknowledged: 0 });
+  const [courses, setCourses]           = useState([]);
+  const [selectedCourse, setSelected]   = useState(null);
+  const [assignments, setAssignments]   = useState([]);
+  const [group, setGroup]               = useState(null);
+  const [groupProgress, setGroupProgress]         = useState({ total: 0, submitted: 0, acknowledged: 0 });
+  const [individualProgress, setIndividualProgress] = useState({ total: 0, submitted: 0 });
   const [submittedIds, setSubmittedIds] = useState(new Set());
   const [confirmingId, setConfirmingId] = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState('');
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState('');
 
-  // Load courses + group on mount
   useEffect(() => {
     Promise.all([
       API.get('/courses/my'),
@@ -28,17 +28,16 @@ export default function StudentDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Load assignments when a course is selected
   useEffect(() => {
     if (!selectedCourse) return;
     API.get(`/assignments?course_id=${selectedCourse.id}`)
       .then(res => setAssignments(res.data));
   }, [selectedCourse]);
 
-  // Load progress + submitted IDs when group loads
   useEffect(() => {
     if (!group?.id) return;
-    fetchProgress();
+    fetchGroupProgress();
+    fetchIndividualProgress();
     API.get('/submissions').then(res => {
       const ids = res.data
         .filter(s => s.group_id === group.id)
@@ -47,10 +46,20 @@ export default function StudentDashboard() {
     });
   }, [group]);
 
-  const fetchProgress = async () => {
+  const fetchGroupProgress = async () => {
     if (!group?.id) return;
-    const res = await API.get(`/submissions/progress?group_id=${group.id}`);
-    setProgress(res.data);
+    const res = await API.get(`/submissions/progress?group_id=${group.id}&type=group`);
+    setGroupProgress(res.data);
+  };
+
+  const fetchIndividualProgress = async () => {
+    if (!group?.id) return;
+    try {
+      const res = await API.get(`/submissions/progress?group_id=${group.id}&type=individual`);
+      setIndividualProgress(res.data);
+    } catch {
+      // individual progress endpoint may not exist yet — silently ignore
+    }
   };
 
   const handleConfirm = async (assignmentId) => {
@@ -62,7 +71,8 @@ export default function StudentDashboard() {
       });
       setSubmittedIds(prev => new Set([...prev, assignmentId]));
       setConfirmingId(null);
-      fetchProgress();
+      fetchGroupProgress();
+      fetchIndividualProgress();
     } catch (err) {
       setError(err.response?.data?.msg || 'Submission failed');
     }
@@ -74,7 +84,7 @@ export default function StudentDashboard() {
         assignment_id: assignmentId,
         group_id: group.id,
       });
-      fetchProgress();
+      fetchGroupProgress();
     } catch (err) {
       setError(err.response?.data?.msg || 'Acknowledgment failed');
     }
@@ -90,8 +100,9 @@ export default function StudentDashboard() {
     </div>
   );
 
-  const submittedPct    = progress.total ? Math.round((progress.submitted    / progress.total) * 100) : 0;
-  const acknowledgedPct = progress.total ? Math.round((progress.acknowledged / progress.total) * 100) : 0;
+  const groupSubmittedPct    = groupProgress.total ? Math.round((groupProgress.submitted    / groupProgress.total) * 100) : 0;
+  const groupAcknowledgedPct = groupProgress.total ? Math.round((groupProgress.acknowledged / groupProgress.total) * 100) : 0;
+  const indivSubmittedPct    = individualProgress.total ? Math.round((individualProgress.submitted / individualProgress.total) * 100) : 0;
 
   return (
     <>
@@ -102,11 +113,66 @@ export default function StudentDashboard() {
 
         {error && <p className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">{error}</p>}
 
-        {/* Progress bars */}
-        <div className="bg-white rounded-xl shadow p-4 mb-6 space-y-3">
-          <h2 className="font-semibold text-gray-700 mb-2">Group Progress</h2>
-          <ProgressBar label="Assignments submitted" value={progress.submitted} max={progress.total || 1} color="indigo" showBadge />
-          <ProgressBar label="Leader acknowledged"   value={progress.acknowledged} max={progress.total || 1} color="green" showBadge />
+        {/* Progress section */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          {/* Group progress */}
+          <div className="bg-white rounded-xl shadow p-4 space-y-3">
+            <h2 className="font-semibold text-gray-700 flex items-center gap-2">
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Group</span>
+              Group Assignment Progress
+            </h2>
+            {groupProgress.total === 0 ? (
+              <p className="text-gray-400 text-sm">No group assignments yet.</p>
+            ) : (
+              <>
+                <div>
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Submitted</span>
+                    <span>{groupProgress.submitted}/{groupProgress.total} ({groupSubmittedPct}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="bg-indigo-500 h-3 rounded-full transition-all duration-700"
+                      style={{ width: `${groupSubmittedPct}%` }} />
+                  </div>
+                  {groupSubmittedPct === 100 && <p className="text-green-600 text-xs font-medium mt-1">Complete</p>}
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Leader acknowledged</span>
+                    <span>{groupProgress.acknowledged}/{groupProgress.total} ({groupAcknowledgedPct}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="bg-green-500 h-3 rounded-full transition-all duration-700"
+                      style={{ width: `${groupAcknowledgedPct}%` }} />
+                  </div>
+                  {groupAcknowledgedPct === 100 && <p className="text-green-600 text-xs font-medium mt-1">Complete</p>}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Individual progress */}
+          <div className="bg-white rounded-xl shadow p-4 space-y-3">
+            <h2 className="font-semibold text-gray-700 flex items-center gap-2">
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Individual</span>
+              Individual Assignment Progress
+            </h2>
+            {individualProgress.total === 0 ? (
+              <p className="text-gray-400 text-sm">No individual assignments yet.</p>
+            ) : (
+              <div>
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>Submitted</span>
+                  <span>{individualProgress.submitted}/{individualProgress.total} ({indivSubmittedPct}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div className="bg-purple-500 h-3 rounded-full transition-all duration-700"
+                    style={{ width: `${indivSubmittedPct}%` }} />
+                </div>
+                {indivSubmittedPct === 100 && <p className="text-green-600 text-xs font-medium mt-1">Complete</p>}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Course cards */}
@@ -118,10 +184,8 @@ export default function StudentDashboard() {
               : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {courses.map(c => (
-                    <div key={c.id}
-                      onClick={() => setSelected(c)}
-                      className="bg-white rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition border border-transparent hover:border-indigo-200"
-                    >
+                    <div key={c.id} onClick={() => setSelected(c)}
+                      className="bg-white rounded-xl shadow p-5 cursor-pointer hover:shadow-md transition border border-transparent hover:border-indigo-200">
                       <h3 className="font-bold text-lg mb-1">{c.title}</h3>
                       <p className="text-gray-500 text-sm mb-3">{c.description}</p>
                       <div className="flex gap-4 text-xs text-gray-400">
@@ -135,7 +199,6 @@ export default function StudentDashboard() {
             }
           </>
         ) : (
-          /* Assignment page for selected course */
           <>
             <div className="flex items-center gap-3 mb-4">
               <button onClick={() => { setSelected(null); setAssignments([]); }}
@@ -150,15 +213,22 @@ export default function StudentDashboard() {
               : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {assignments.map(a => {
-                    const isSubmitted    = submittedIds.has(a.id);
-                    const isOverdue      = new Date(a.due_date) < new Date() && !isSubmitted;
-                    const status         = isSubmitted ? 'CONFIRMED' : isOverdue ? 'OVERDUE' : 'PENDING';
+                    const isSubmitted = submittedIds.has(a.id);
+                    const isOverdue   = new Date(a.due_date) < new Date() && !isSubmitted;
+                    const status      = isSubmitted ? 'CONFIRMED' : isOverdue ? 'OVERDUE' : 'PENDING';
 
                     return (
                       <div key={a.id} className="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
                         <div className="flex justify-between items-start">
                           <h3 className="font-bold">{a.title}</h3>
-                          <StatusBadge status={status} />
+                          <div className="flex flex-col items-end gap-1">
+                            <StatusBadge status={status} />
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              a.type === 'individual' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {a.type === 'individual' ? 'Individual' : 'Group'}
+                            </span>
+                          </div>
                         </div>
                         <p className="text-gray-500 text-sm">{a.description}</p>
                         <p className="text-xs text-gray-400">Due: {new Date(a.due_date).toLocaleDateString()}</p>
@@ -170,13 +240,10 @@ export default function StudentDashboard() {
                           </a>
                         )}
 
-                        {/* Submit / Acknowledge */}
                         {isSubmitted ? (
                           <div className="flex flex-col gap-2 mt-1">
-                            <span className="inline-flex items-center gap-1 text-green-600 text-sm font-medium">
-                              ✓ Submitted
-                            </span>
-                            {group.is_leader && (
+                            <span className="inline-flex items-center gap-1 text-green-600 text-sm font-medium">✓ Submitted</span>
+                            {group.is_leader && a.type === 'group' && (
                               <button onClick={() => handleAcknowledge(a.id)}
                                 className="bg-indigo-500 text-white text-sm px-3 py-1.5 rounded hover:bg-indigo-600">
                                 Acknowledge for group

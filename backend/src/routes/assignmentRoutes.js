@@ -45,7 +45,7 @@ router.get('/', verifyToken, async (req, res) => {
 // Create assignment
 router.post('/', verifyToken, async (req, res) => {
 
-  const { title, description, due_date, onedrive_link, course_id } = req.body;
+  const { title, description, due_date, onedrive_link, course_id,type } = req.body;
 
   if (!req.user?.id) return res.status(401).json({ message: 'Not authenticated' });
 
@@ -53,11 +53,11 @@ router.post('/', verifyToken, async (req, res) => {
 
     const result = await pool.query(
 
-      `INSERT INTO assignments (title, description, due_date, onedrive_link, created_by, course_id)
+      `INSERT INTO assignments (title, description, due_date, onedrive_link, created_by, course_id, type)
 
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
 
-      [title, description, due_date, onedrive_link, req.user.id, course_id]
+      [title, description, due_date, onedrive_link, req.user.id, course_id,type]
 
     );
 
