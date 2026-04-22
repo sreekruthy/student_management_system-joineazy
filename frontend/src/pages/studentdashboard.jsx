@@ -6,18 +6,19 @@ import Navbar from "../components/navbar";
 import ProgressBar from "../components/ui/ProgressBar";
 
 export default function StudentDashboard() {
-  const [courses, setCourses]         = useState([]);
-  const [selectedCourse, setSelected] = useState(null);
-  const [assignments, setAssignments] = useState([]);
-  const [group, setGroup]             = useState(null);
-  const [groupProgress, setGroupProgress]       = useState({ total: 0, submitted: 0, acknowledged: 0 });
+  const [courses, setCourses]           = useState([]);
+  const [selectedCourse, setSelected]   = useState(null);
+  const [assignments, setAssignments]   = useState([]);
+  const [group, setGroup]               = useState(null);
+  const [groupProgress, setGroupProgress]           = useState({ total: 0, submitted: 0 });
   const [individualProgress, setIndividualProgress] = useState({ total: 0, submitted: 0 });
+  // submittedIds: Set of assignment IDs that THIS user personally confirmed
   const [submittedIds, setSubmittedIds] = useState(new Set());
   const [confirmingId, setConfirmingId] = useState(null);
-  const [expandedId, setExpandedId]   = useState(null); // per-assignment breakdown
-  const [breakdowns, setBreakdowns]   = useState({});   // cache: assignmentId -> breakdown
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState('');
+  const [expandedId, setExpandedId]     = useState(null);
+  const [breakdowns, setBreakdowns]     = useState({});
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -34,9 +35,12 @@ export default function StudentDashboard() {
     if (!group?.id) return;
     fetchGroupProgress();
     fetchIndividualProgress();
+
+    // Only mark as submitted if THIS user personally confirmed it
+    const currentUserId = JSON.parse(localStorage.getItem('user'))?.id;
     API.get('/submissions').then(res => {
       const ids = res.data
-        .filter(s => s.group_id === group.id)
+        .filter(s => s.group_id === group.id && s.confirmed_by === currentUserId)
         .map(s => s.assignment_id);
       setSubmittedIds(new Set(ids));
     });
@@ -64,7 +68,6 @@ export default function StudentDashboard() {
   };
 
   const fetchBreakdown = async (assignmentId) => {
-    if (breakdowns[assignmentId]) return; // already cached
     try {
       const res = await API.get(`/submissions/breakdown/${assignmentId}?group_id=${group.id}`);
       setBreakdowns(prev => ({ ...prev, [assignmentId]: res.data }));
@@ -87,10 +90,12 @@ export default function StudentDashboard() {
         assignment_id: assignmentId,
         group_id: group.id,
       });
+      // Mark as submitted only for this user
       setSubmittedIds(prev => new Set([...prev, assignmentId]));
       setConfirmingId(null);
-      // Invalidate breakdown cache for this assignment
+      // Refresh breakdown and progress
       setBreakdowns(prev => { const n = { ...prev }; delete n[assignmentId]; return n; });
+      if (expandedId === assignmentId) fetchBreakdown(assignmentId);
       fetchGroupProgress();
       fetchIndividualProgress();
     } catch (err) {
@@ -98,14 +103,17 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleAcknowledge = async (assignmentId) => {
+  // Acknowledge one specific member's submission
+  const handleAcknowledge = async (assignmentId, memberId) => {
     try {
       await API.post('/submissions/acknowledge', {
         assignment_id: assignmentId,
         group_id: group.id,
+        member_id: memberId,
       });
-      // Invalidate breakdown cache
+      // Refresh breakdown immediately
       setBreakdowns(prev => { const n = { ...prev }; delete n[assignmentId]; return n; });
+      fetchBreakdown(assignmentId);
       fetchGroupProgress();
     } catch (err) {
       setError(err.response?.data?.msg || 'Acknowledgment failed');
@@ -142,7 +150,7 @@ export default function StudentDashboard() {
         {/* ── Top-level progress cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
 
-          {/* Group progress */}
+          {/* Group progress — only "all members submitted" bar */}
           <div className="bg-white rounded-xl shadow p-4 space-y-3">
             <h2 className="font-semibold text-gray-700 flex items-center gap-2">
               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Group</span>
@@ -151,14 +159,13 @@ export default function StudentDashboard() {
             {groupProgress.total === 0 ? (
               <p className="text-gray-400 text-sm">No group assignments yet.</p>
             ) : (
-              <>
-                <div>
-                  <ProgressBar value={groupProgress.submitted} max={groupProgress.total} label="Groups submitted" color="indigo" showBadge/>
-                </div>
-                <div>
-                  <ProgressBar value={groupProgress.acknowledged} max={groupProgress.total} label="Leader acknowledged" color="green" showBadge />
-                </div>
-              </>
+              <ProgressBar
+                value={groupProgress.submitted}
+                max={groupProgress.total}
+                label="Fully submitted by group"
+                color="indigo"
+                showBadge
+              />
             )}
           </div>
 
@@ -171,9 +178,13 @@ export default function StudentDashboard() {
             {individualProgress.total === 0 ? (
               <p className="text-gray-400 text-sm">No individual assignments yet.</p>
             ) : (
-              <div>
-                <ProgressBar value={individualProgress.submitted} max={individualProgress.total} label="Submitted" color="indigo" showBadge />
-              </div>
+              <ProgressBar
+                value={individualProgress.submitted}
+                max={individualProgress.total}
+                label="Submitted"
+                color="indigo"
+                showBadge
+              />
             )}
           </div>
         </div>
@@ -203,7 +214,8 @@ export default function StudentDashboard() {
         ) : (
           <>
             <div className="flex items-center gap-3 mb-4">
-              <button onClick={() => { setSelected(null); setAssignments([]); setExpandedId(null); }}
+              <button
+                onClick={() => { setSelected(null); setAssignments([]); setExpandedId(null); }}
                 className="text-indigo-500 hover:underline text-sm">
                 ← Back to courses
               </button>
@@ -230,9 +242,7 @@ export default function StudentDashboard() {
                         <div className="flex flex-col items-end gap-1">
                           <StatusBadge status={status} />
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            isGroup
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-purple-100 text-purple-700'
+                            isGroup ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
                           }`}>
                             {isGroup ? 'Group' : 'Individual'}
                           </span>
@@ -241,9 +251,7 @@ export default function StudentDashboard() {
 
                       <p className="text-gray-500 text-sm">{a.description}</p>
                       <p className="text-xs text-gray-400">Due: {new Date(a.due_date).toLocaleDateString()}</p>
-                      {a.professor_name && (
-                        <p className="text-xs text-gray-400">By: {a.professor_name}</p>
-                      )}
+                      {a.professor_name && <p className="text-xs text-gray-400">By: {a.professor_name}</p>}
                       {a.onedrive_link && (
                         <a href={a.onedrive_link} target="_blank" rel="noreferrer"
                           className="text-blue-500 text-sm hover:underline">
@@ -253,17 +261,9 @@ export default function StudentDashboard() {
 
                       {/* Submit / confirm controls */}
                       {isSubmitted ? (
-                        <div className="flex flex-col gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 text-green-600 text-sm font-medium">
-                            ✓ Submitted
-                          </span>
-                          {group.is_leader && isGroup && (
-                            <button onClick={() => handleAcknowledge(a.id)}
-                              className="bg-indigo-500 text-white text-sm px-3 py-1.5 rounded hover:bg-indigo-600">
-                              Acknowledge for group
-                            </button>
-                          )}
-                        </div>
+                        <span className="inline-flex items-center gap-1 text-green-600 text-sm font-medium mt-1">
+                          ✓ Submitted
+                        </span>
                       ) : confirmingId === a.id ? (
                         <div className="flex gap-2 mt-1">
                           <button onClick={() => handleConfirm(a.id)}
@@ -282,49 +282,43 @@ export default function StudentDashboard() {
                         </button>
                       )}
 
-                      {/* ── Per-assignment group breakdown (group assignments only) ── */}
+                      {/* Group breakdown toggle */}
                       {isGroup && (
-                        <button
-                          onClick={() => toggleBreakdown(a.id)}
+                        <button onClick={() => toggleBreakdown(a.id)}
                           className="mt-1 text-xs text-indigo-500 hover:underline text-left">
                           {isExpanded ? '▲ Hide group breakdown' : '▼ View group breakdown'}
                         </button>
                       )}
 
+                      {/* Group breakdown panel */}
                       {isGroup && isExpanded && (
                         <div className="mt-2 border-t pt-3 space-y-3">
                           {!bd ? (
                             <p className="text-xs text-gray-400">Loading...</p>
                           ) : (
                             <>
-                              {/* Member submission bar */}
-                              <div>
-                                <ProgressBar
-                                  value={bd.submittedCount}
-                                  max={bd.totalMembers}
-                                  label="Members submitted"
-                                  color="indigo"
-                                />
-                              </div>
+                              <ProgressBar
+                                value={bd.submittedCount}
+                                max={bd.totalMembers}
+                                label="Members submitted"
+                                color="indigo"
+                              />
+                              <ProgressBar
+                                value={bd.acknowledgedCount}
+                                max={bd.totalMembers}
+                                label="Leader acknowledged"
+                                color="green"
+                                showBadge
+                              />
 
-                              {/* Acknowledgment bar */}
-                              <div>
-                                <ProgressBar
-                                  value={bd.acknowledgedCount}
-                                  max={bd.totalMembers}
-                                  label="Leader acknowledged"
-                                  color="green"
-                                  showBadge
-                                />
-                              </div>
-
-                              {/* Member list */}
-                              <div className="space-y-1">
+                              {/* Per-member list with individual acknowledge buttons */}
+                              <div className="space-y-2">
                                 {bd.members.map(m => (
                                   <div key={m.id}
-                                    className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                                    <span className="text-gray-700">{m.name}</span>
-                                    <div className="flex gap-2">
+                                    className="flex items-center justify-between text-xs py-1.5 border-b last:border-0">
+                                    <span className="text-gray-700 font-medium">{m.name}</span>
+                                    <div className="flex items-center gap-2">
+                                      {/* Submission status */}
                                       <span className={`px-1.5 py-0.5 rounded ${
                                         m.submitted
                                           ? 'bg-green-100 text-green-700'
@@ -332,14 +326,24 @@ export default function StudentDashboard() {
                                       }`}>
                                         {m.submitted ? '✓ Submitted' : 'Pending'}
                                       </span>
+
+                                      {/* Acknowledge status / button */}
                                       {m.submitted && (
-                                        <span className={`px-1.5 py-0.5 rounded ${
-                                          m.acknowledged
-                                            ? 'bg-indigo-100 text-indigo-700'
-                                            : 'bg-gray-100 text-gray-400'
-                                        }`}>
-                                          {m.acknowledged ? '✓ Ack' : 'Not ack'}
-                                        </span>
+                                        m.acknowledged ? (
+                                          <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                            ✓ Ack
+                                          </span>
+                                        ) : group.is_leader ? (
+                                          <button
+                                            onClick={() => handleAcknowledge(a.id, m.id)}
+                                            className="px-1.5 py-0.5 rounded bg-indigo-500 text-white hover:bg-indigo-600">
+                                            Acknowledge
+                                          </button>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">
+                                            Not ack
+                                          </span>
+                                        )
                                       )}
                                     </div>
                                   </div>
