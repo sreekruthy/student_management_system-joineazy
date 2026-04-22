@@ -93,4 +93,28 @@ router.patch('/:id/students', verifyToken, async (req, res) => {
   }
 });
 
+// Edit enrolled students
+router.patch('/:id/students', verifyToken, async (req, res) => {
+  const { studentEmails } = req.body;
+  const courseId = req.params.id;
+  try {
+    if (studentEmails?.length) {
+      for (const email of studentEmails) {
+        const user = await pool.query(
+          `SELECT id FROM users WHERE email = $1 AND role = 'STUDENT'`, [email]
+        );
+        if (user.rows[0]) {
+          await pool.query(
+            `INSERT INTO enrolled_courses (course_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [courseId, user.rows[0].id]
+          );
+        }
+      }
+    }
+    res.json({ msg: 'Students updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
